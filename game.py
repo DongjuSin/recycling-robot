@@ -86,7 +86,10 @@ def send_action(world, action, *args, **kwargs):
     ACTIONS[action](world, *args, **kwargs)
 
 def get_reward(world):
-    return world.get_score()
+    if world.is_getout():
+        return -100
+    else:
+        return world.get_score()
 
 def get_screen_pixels(world, w, h):
     #return pygame.surfarray.array2d(pygame.transform.scale(world.get_screen(), (w, h))).view('uint8').reshape((w, h, 4,))[..., :3][:,:,::-1]
@@ -219,7 +222,7 @@ def main(_):
             isgameover = False
             #current_state = get_screen_pixels(world, 32, 32)
             current_state = observe(world, state_size, state_size)
-
+            world.reset()
             while(isgameover != True): #condition
                 show(world)
                 #initialize clock
@@ -247,8 +250,10 @@ def main(_):
                 # get next state and reward
                 #next_state = get_screen_pixels(world, 32, 32)
                 next_state = observe(world, state_size, state_size)
-                reward = world.get_score()
+                #reward = world.get_score()
+                reward = get_reward(world)
                 isgameover = world.is_gameover()
+                print("isgameover : " + str(isgameover))
                 # store experience <s,a,r,s'> in replay memory
                 memory.remember(current_state, action, reward, next_state, isgameover)
                 # update current state and if the game is over
@@ -261,6 +266,7 @@ def main(_):
                 _, loss = sess.run([train_step, cost], feed_dict={X: inputs, Y: targets})
                 print("loss is : " + str(loss))
                 err = err + loss
+            #world.reset()
             print("Epoch " + str(i) + ": err = " + str(err))
         # Save the variables to disk.
         save_path = saver.save(sess, os.getcwd()+"/model.ckpt")
@@ -304,8 +310,8 @@ def test(world, w=0, h=0):
                 pass
 
 
-world = gen_world(800, 800)
-test(world, 800, 800)
-#if __name__ == '__main__':
-#    tf.app.run()
+#world = gen_world(800, 800)
+#test(world, 800, 800)
+if __name__ == '__main__':
+    tf.app.run()
 

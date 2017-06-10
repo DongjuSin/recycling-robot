@@ -16,6 +16,7 @@ class World:
         self.h = h
         
         # gen trashes randomly
+        '''
         self.trashes = {
             "can": [Can() for _ in range(random.randrange(1, 10))]
         }
@@ -24,6 +25,15 @@ class World:
                 radius=(trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
                 trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
                 trash.rotate_to(random.random()*math.pi*2)
+        '''
+        
+        # gen one trash
+        self.trash = Can()
+        trash = self.trash
+        radius = (trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
+        trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        trash.rotate_to(random.random()*math.pi*2)
+
         # gen robot random position
         self.robot = Robot()
         radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
@@ -47,8 +57,35 @@ class World:
         
         # gen screen(which all of above are drawn)
         self.screen = pygame.Surface((w, h))
+
+    def reset(self):
+        # gen can trash
+        w=self.w
+        h=self.h
+
+        trash = self.trash
+        radius = (trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
+        trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        trash.rotate_to(random.random()*math.pi*2)
+
+        # gen robot
+        radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
+        self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        self.robot.rotate_to(random.random()*math.pi*2)
+    
+        # gen Trash Can
+        self.trashcan.move_to(self.w/2, self.h/2)
+
+        # gen background
+        self.background = pygame.Surface((w, h))
+        self.background.fill((255, 255, 255))
+
+        # gen screen
+        self.screen = pygame.Surface((w, h))
+
     def get_score(self):
         # get distacne score from each trashes
+        '''
         distance_square_sum=0
         for _, trashes in self.trashes.items():
             for i in range(len(trashes)):
@@ -56,7 +93,16 @@ class World:
                     trash1 = trashes[i]
                     trash2 = trashes[j]
                     distance_square_sum += trash1.distance(trash2)**2
-        return distance_square_sum
+        return -distance_square_sum
+        '''
+
+        # when only one trash
+        max_dist = (self.w**2 + self.h**2)**0.5*0.5
+        dist = self.trash.distance(self.trashcan)
+
+        reward = max_dist - dist
+
+        return reward
             
     def get_screen(self):
         # draw background
@@ -65,12 +111,20 @@ class World:
         #for i in range(len(World.categories)):
         #    self.screen.blit(self.category_label_sprites[i], self.category_label_poses[i])
         # draw trash
+        '''
         for _, trashes in self.trashes.items():
             for trash in trashes: 
                 if trash == self.robot.grab_thing:
                     continue
                 trash_sprite = pygame.transform.rotate(trash.sprite, trash.angle/math.pi*180)
                 self.screen.blit(trash_sprite, (trash.x-trash_sprite.get_width()*0.5, trash.y-trash_sprite.get_height()*0.5))
+        '''
+        # when only one trash
+        trash = self.trash
+        if trash != self.robot.grab_thing:
+            trash_sprite = pygame.transform.rotate(trash.sprite, trash.angle/math.pi*180)
+            self.screen.blit(trash_sprite, (trash.x-trash_sprite.get_width()*0.5, trash.y-trash_sprite.get_height()*0.5))
+
         # draw grub thing if exist
         if self.robot.grab_thing is not None: 
             trash = self.robot.grab_thing
@@ -95,6 +149,7 @@ class World:
     
     def is_gamewin(self):
         gamewin = False
+        '''
         for _, trashes in self.trashes.items():
             trash1 = trashes[0]
             for i in range(1,len(trashes)):
@@ -103,6 +158,14 @@ class World:
                     gamewin = True
                 else:
                     gamewin = False
+        return gamewin
+        '''
+        # when only one trash
+        trash = self.trash
+        if(trash.distance(self.trashcan) < 10):
+            gamewin = True
+        else:
+            gamewin = False
         return gamewin
 
     def is_getout(self):
@@ -167,6 +230,7 @@ class Robot(Thing):
     def try_grab_nearlist(self, world):
         if self.grab_thing is not None: return False
         arm_pos = (self.x+math.cos(self.angle)*0.5*self.w, self.y-math.sin(self.angle)*0.5*self.w)
+        '''
         best_d = 0
         for _, trashes in world.trashes.items():
             for thing in trashes:
@@ -178,6 +242,17 @@ class Robot(Thing):
                     elif best_d >= d2:
                         self.grab_thing = thing
         if self.grab_thing is not None: 
+            self.grab_thing.move_to(*arm_pos)
+            return True
+        else: return False
+        '''
+        trash = world.trash
+        distance = (trash.x - arm_pos[0])**2 + (trash.y - arm_pos[1])**2
+        if distance < Robot.arm_range**2:
+            if self.grab_thing is None:
+                self.grab_thing = trash
+
+        if self.grab_thing is not None:
             self.grab_thing.move_to(*arm_pos)
             return True
         else: return False
