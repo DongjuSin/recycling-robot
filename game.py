@@ -5,7 +5,7 @@ import numpy as np
 import random
 import os
 import math
-from Simulator import World, Thing, Robot, Can
+from Simulator import World, Thing, Robot, Can, TrashCan
 
 # Parameters
 epsilon = 1 # The probability of choosing a random action (in training).
@@ -304,8 +304,8 @@ def test(world, w=0, h=0):
                 pass
 
 
-#world = gen_world(800, 800)
-#test(world, 800, 800)
-if __name__ == '__main__':
-    tf.app.run()
+world = gen_world(800, 800)
+test(world, 800, 800)
+#if __name__ == '__main__':
+#    tf.app.run()
 

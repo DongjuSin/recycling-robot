@@ -4,7 +4,6 @@ import os
 import random
 import math
 
-
 pygame.init()
 pygame.font.init()
 pygame.display.set_mode((1024, 1024))
@@ -15,6 +14,7 @@ class World:
     def __init__(self, w, h):
         self.w = w
         self.h = h
+        
         # gen trashes randomly
         self.trashes = {
             "can": [Can() for _ in range(random.randrange(1, 10))]
@@ -29,6 +29,11 @@ class World:
         radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
         self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
         self.robot.rotate_to(random.random()*math.pi*2)
+
+        # gen Trash Can
+        self.trashcan = TrashCan()
+        radius = (self.trashcan.image.get_width()**2 + self.trashcan.image.get_height()**2)**0.5*0.5
+        self.trashcan.move_to(self.w/2, self.h/2)
 
         # gen background 
         # should be with noise(not currently support)
@@ -52,8 +57,6 @@ class World:
                     trash2 = trashes[j]
                     distance_square_sum += trash1.distance(trash2)**2
         return distance_square_sum
-        
-        
             
     def get_screen(self):
         # draw background
@@ -76,6 +79,9 @@ class World:
         # draw robot
         robot_sprite = pygame.transform.rotate(self.robot.sprite, self.robot.angle/math.pi*180)
         self.screen.blit(robot_sprite, (self.robot.x-robot_sprite.get_width()*0.5, self.robot.y-robot_sprite.get_height()*0.5))
+
+        # draw TrashCan
+        self.screen.blit(self.trashcan.image, (self.trashcan.x-self.trashcan.image.get_width()*0.5, self.trashcan.y-self.trashcan.image.get_height()*0.5))
         return self.screen
 
     def draw_on(self, dest):
@@ -227,4 +233,8 @@ class Robot(Thing):
         # move horizental
         horizental_speed = self.wheel_speed*(-left_top+right_top+left_bottom-right_bottom)*0.25
         self.move_by(math.cos(self.angle-math.pi*0.5)*horizental_speed, -math.sin(self.angle-math.pi*0.5)*horizental_speed)
-        
+
+class TrashCan(Thing):
+    image = pygame.image.load("images/TrashCan/TrashCan.png").convert_alpha()
+    def __init__(self):
+        Thing.__init__(self, "trashcan", self.image.get_width(), self.image.get_height())
