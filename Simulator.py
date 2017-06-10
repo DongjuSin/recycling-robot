@@ -51,7 +51,7 @@ class World:
                     trash1 = trashes[i]
                     trash2 = trashes[j]
                     distance_square_sum += trash1.distance(trash2)**2
-        return -distance_square_sum
+        return distance_square_sum
         
         
             
@@ -99,12 +99,17 @@ class World:
                     gamewin = False
         return gamewin
 
-    def is_gameover(self):
-        if(self.get_elapsed_time() > 60 or self.is_gamewin()):
+    def is_getout(self):
+        if(self.robot.x > self.w or self.robot.x < 0 or self.robot.y > self.h or self.robot.y < 0):
             return True
         else:
             return False
 
+    def is_gameover(self):
+        if(self.is_getout() or self.get_elapsed_time() > 60 or self.is_gamewin()):
+            return True
+        else:
+            return False
 
 class Thing:
     def __init__(self, name, w, h):

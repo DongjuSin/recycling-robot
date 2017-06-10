@@ -15,10 +15,9 @@ state_size = 32
 n_state = state_size*state_size
 hidden_size = state_size*state_size
 n_action = 8 # 9? wheel_move?
-learning_rate = 0.2
 maxMemory = 500 # How large should the memory be(where it stores its past experiences).
 discount = 0.9 # The discount is used to force the network to choose states that lead to the reward quicker
-learning_rate = 0.2
+learning_rate = 0.0001
 batchSize = 50
 
 # Create the base model.
@@ -35,7 +34,8 @@ output_layer = tf.matmul(hidden_layer, W3) + b3
 # True labels
 Y = tf.placeholder(tf.float32, [None, n_action])
 # Mean squared error cost function
-cost = tf.reduce_sum(tf.square(Y-output_layer)) # / (2*batch_size)
+# cost = tf.reduce_sum(tf.square(Y-output_layer)) / (2*batchSize)
+cost = tf.reduce_sum(tf.square(Y-output_layer)) / (2*batchSize)
 # Stochastic Gradient Descent Optimizer
 train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
 
@@ -132,10 +132,10 @@ class ReplayMemory:
         canvas = np.zeros((self.state_size, self.state_size))
         canvas = np.reshape(canvas, (-1,self.n_state))
         # self.inputState = np.empty((self.maxMemory, 100), dtype = np.float32)
-        self.inputState = np.empty((self.maxMemory, 32*32), dtype = np.uint8)
+        self.inputState = np.empty((self.maxMemory, n_state), dtype = np.uint8)
         self.actions = np.zeros(self.maxMemory, dtype = np.uint8)
         # self.nextState = np.empty((self.maxMemory, 100), dtype = np.float32)
-        self.nextState = np.empty((self.maxMemory, 32*32), dtype = np.uint8)
+        self.nextState = np.empty((self.maxMemory, n_state), dtype = np.uint8)
         self.gameOver = np.empty(self.maxMemory, dtype = np.bool)
         self.rewards = np.empty(self.maxMemory, dtype = np.int8)
         self.count = 0
@@ -145,16 +145,18 @@ class ReplayMemory:
     def remember(self, currentState, action, reward, nextState, gameOver):
         self.actions[self.current] = action
         self.rewards[self.current] = reward
-        # print(self.inputState[self.current].shape, currentState[0].shape)
         # print(self.inputState[self.current].dtype, currentState[0].dtype)
         # print(self.inputState[self.current, 0],currentState[0,0])
-        self.inputState[self.current, ...] = currentState[0]
-        self.nextState[self.current, ...] = nextState[0]
+        # self.inputState[self.current, ...] = currentState[0]
+        self.inputState[self.current, ...] = currentState
+        # self.nextState[self.current, ...] = nextState[0]
+        self.nextState[self.current, ...] = nextState
         self.gameOver[self.current] = gameOver
         self.count = max(self.count, self.current + 1)
         self.current = (self.current + 1) % self.maxMemory 
 
-    def getBatch(self, model, batchSize, nbActions, nbStates, sess, X):
+    # def getBatch(self, model, batchSize, nbActions, nbStates, sess, X):
+    def getBatch(self, batchSize, nbActions, nbStates, sess, X):
     
         # We check to see if we have enough memory inputs to make an entire batch, if not we create the biggest
         # batch we can (at the beginning of training we will not have enough experience to fill a batch).
@@ -171,14 +173,15 @@ class ReplayMemory:
             # Choose a random memory experience to add to the batch.
             randomIndex = random.randrange(1, memoryLength)
             #current_inputState = np.reshape(self.inputState[randomIndex], (1, 100))
-            current_inputState = np.reshape(self.inputState[randomIndex], (1,32*32))
-
-            target = sess.run(model, feed_dict={X: current_inputState})
+            current_inputState = np.reshape(self.inputState[randomIndex], (1,n_state))
+            # target = sess.run(model, feed_dict={X: current_inputState})
+            target = sess.run(output_layer, feed_dict={X: current_inputState})
       
             #current_nextState =  np.reshape(self.nextState[randomIndex], (1, 100))
-            current_nextState = np.reshape(self.nextState[randomIndex], (1,32*32))
-            current_outputs = sess.run(model, feed_dict={X: current_nextState})      
-      
+            current_nextState = np.reshape(self.nextState[randomIndex], (1,n_state))
+            # current_outputs = sess.run(model, feed_dict={X: current_nextState})
+            current_outputs = sess.run(output_layer, feed_dict={X: current_nextState})
+
             # Gives us Q_sa, the max q for the next state.
             nextStateMaxQ = np.amax(current_outputs)
             if (self.gameOver[randomIndex] == True):
@@ -215,9 +218,10 @@ def main(_):
             err = 0
             isgameover = False
             #current_state = get_screen_pixels(world, 32, 32)
-            current_state = observe(world, 32, 32)
+            current_state = observe(world, state_size, state_size)
 
             while(isgameover != True): #condition
+                show(world)
                 #initialize clock
                 world.set_t_start()
                 # initialize action
@@ -240,23 +244,22 @@ def main(_):
 
                 # carry out an action
                 act(world,action)
-                print("here1")
                 # get next state and reward
                 #next_state = get_screen_pixels(world, 32, 32)
-                next_state = observe(world, 32, 32)
+                next_state = observe(world, state_size, state_size)
                 reward = world.get_score()
                 isgameover = world.is_gameover()
-                print("here2")
                 # store experience <s,a,r,s'> in replay memory
                 memory.remember(current_state, action, reward, next_state, isgameover)
                 # update current state and if the game is over
                 current_state = next_state
                 
                 # get a batch of training data to train the model
-                inputs, targets = memory.getBatch(output_layer, batchSize, n_action, n_state, sess, X)
+                inputs, targets = memory.getBatch(batchSize, n_action, n_state, sess, X)
 
                 # Train the network which returns the error
                 _, loss = sess.run([train_step, cost], feed_dict={X: inputs, Y: targets})
+                print("loss is : " + str(loss))
                 err = err + loss
             print("Epoch " + str(i) + ": err = " + str(err))
         # Save the variables to disk.

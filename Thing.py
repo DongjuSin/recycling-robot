@@ -98,8 +98,14 @@ class World:
                     gamewin = False
         return gamewin
 
+    def is_getout(self):
+        if(self.robot.x > self.w or self.robot.x < 0 or self.robot.y > self.h or self.robot.y < 0):
+            return True
+        else :
+            return False
+
     def is_gameover(self):
-        if(self.get_elapsed_time() > 60 or self.is_gamewin()):
+        if(self.is_getout() or self.get_elapsed_time() > 60 or self.is_gamewin()):
             return True
         else:
             return False
