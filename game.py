@@ -6,6 +6,7 @@ import random
 import os
 import math
 from Simulator import World, Thing, Robot, Can, TrashCan
+import time
 
 # Parameters
 epsilon = 1 # The probability of choosing a random action (in training).
@@ -16,8 +17,8 @@ n_state = state_size*state_size
 hidden_size = state_size*state_size
 n_action = 8 # 9? wheel_move?
 maxMemory = 500 # How large should the memory be(where it stores its past experiences).
-discount = 0.9 # The discount is used to force the network to choose states that lead to the reward quicker
-learning_rate = 0.0001
+discount = 0.8 # The discount is used to force the network to choose states that lead to the reward quicker
+learning_rate = 0.001
 batchSize = 50
 
 # Create the base model.
@@ -37,7 +38,13 @@ Y = tf.placeholder(tf.float32, [None, n_action])
 # cost = tf.reduce_sum(tf.square(Y-output_layer)) / (2*batchSize)
 cost = tf.reduce_sum(tf.square(Y-output_layer)) / (2*batchSize)
 # Stochastic Gradient Descent Optimizer
-train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+# train_step = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+opt = tf.train.GradientDescentOptimizer(learning_rate)
+
+# Compute the gradients for a list of variables
+grads_and_vars = opt.compute_gradients(cost)
+capped_grads_and_vars = [(tf.clip_by_value(grad, -1., 1.), var) for grad, var in grads_and_vars]
+train_op = opt.apply_gradients(capped_grads_and_vars)
 
 # Helper function: Choose a random value between the two boundaries.
 def randf(s,e):
@@ -67,29 +74,38 @@ def act(world, action):
     if(action == 1):
         send_action(world, "move_forward", 1)
     elif(action == 2):
-        send_action(world, "turn_left", 1)
-    elif(action == 3):
-        send_action(world, "turn_right", 1)
-    elif(action == 4):
         send_action(world, "move_backward", 1)
-    elif(action == 5):
-        send_action(world, "grab")
-    elif(action == 6):
-        send_action(world, "put")
-    elif(action == 7):
+    elif(action == 3):
         send_action(world, "move_left", 1)
-    elif(action == 8):
+    elif(action == 4):
         send_action(world, "move_right", 1)
-
+    elif(action == 5):
+        send_action(world, "turn_left", 1)
+    elif(action == 6):
+        send_action(world, "turn_right", 1)
+    elif(action == 7):
+        send_action(world, "grab")
+    elif(action == 8):
+        send_action(world, "put")
 
 def send_action(world, action, *args, **kwargs):
     ACTIONS[action](world, *args, **kwargs)
 
-def get_reward(world):
-    if world.is_getout():
-        return -100
+def get_reward(world,prev_score,prev_dist):
+    score = world.get_score()
+    dist = world.get_dist()
+    is_grabthing = world.robot.grab_thing
+
+    if is_grabthing is None and prev_dist < dist:
+        return 1
+    elif is_grabthing is None and prev_dist > dist:
+        return -1
+    elif is_grabthing is not None and prev_score  < score:
+        return 2
+    elif is_grabthing is not None and prev_score > score:
+        return -2
     else:
-        return world.get_score()
+        return 0
 
 def get_screen_pixels(world, w, h):
     #return pygame.surfarray.array2d(pygame.transform.scale(world.get_screen(), (w, h))).view('uint8').reshape((w, h, 4,))[..., :3][:,:,::-1]
@@ -120,7 +136,7 @@ def show(world):
     world.draw_on(screen)
     pygame.display.flip()
     clock.tick()
-    pygame.display.set_caption(TITLE + "/FPS: "+ str(round(clock.get_fps())) + "/SCORE: " + str(get_reward(world)))
+    pygame.display.set_caption(TITLE + "/FPS: "+ str(round(clock.get_fps())) + "/SCORE: " + str(world.get_score()))
 
 
 # The memory : Handles the internal memory that we add experiences that occur based on agent's actions,
@@ -223,23 +239,27 @@ def main(_):
             #current_state = get_screen_pixels(world, 32, 32)
             current_state = observe(world, state_size, state_size)
             world.reset()
+            print("epsilon has value of : " + str(epsilon))
             while(isgameover != True): #condition
                 show(world)
                 #initialize clock
                 world.set_t_start()
                 # initialize action
                 action = -9999
+                prev_score = world.get_score()
+                prev_dist = world.get_dist() 
                 # Decides if we should choose a random action, or an action from the policy network.
                 global epsilon
                 if(randf(0,1) <= epsilon):
                     action = random.randrange(1, n_action+1)
-                    print("action is : " + str(action))
+                    #print("random action is : " + str(action))
                 else:
                     # Forward the current state through the network.
                     q = sess.run(output_layer, feed_dict={X: current_state})
                     # Find the max index
                     index = q.argmax()
                     action = index + 1
+                    print("selected action is : " + str(action))
                 
                 # Decay the epsilon by multiplying by 0.999, not allowing it to go below a certain threshold.
                 if(epsilon > min_epsilon):
@@ -251,9 +271,9 @@ def main(_):
                 #next_state = get_screen_pixels(world, 32, 32)
                 next_state = observe(world, state_size, state_size)
                 #reward = world.get_score()
-                reward = get_reward(world)
+                score = world.get_score()
+                reward = get_reward(world,prev_score,prev_dist)
                 isgameover = world.is_gameover()
-                print("isgameover : " + str(isgameover))
                 # store experience <s,a,r,s'> in replay memory
                 memory.remember(current_state, action, reward, next_state, isgameover)
                 # update current state and if the game is over
@@ -263,11 +283,16 @@ def main(_):
                 inputs, targets = memory.getBatch(batchSize, n_action, n_state, sess, X)
 
                 # Train the network which returns the error
-                _, loss = sess.run([train_step, cost], feed_dict={X: inputs, Y: targets})
-                print("loss is : " + str(loss))
+                #_, loss = sess.run([train_step, cost], feed_dict={X: inputs, Y: targets})
+                _, loss = sess.run([train_op, cost], feed_dict={X: inputs, Y: targets})
+                print("loss: " + str(loss) + ", reward: " + str(reward))
                 err = err + loss
+
+
             #world.reset()
             print("Epoch " + str(i) + ": err = " + str(err))
+        print("winCount : " + str(world.winCount))
+        print("winning rate : " + str(world.winCount/1001))
         # Save the variables to disk.
         save_path = saver.save(sess, os.getcwd()+"/model.ckpt")
         print("Model saved in file: %s" % save_path)
@@ -279,25 +304,57 @@ def test(world, w=0, h=0):
     '''
     while True:
         show(world)
+        '''
         keys = pygame.key.get_pressed()
         if keys[pygame.K_w]:
+            print("move froward")
             send_action(world, "move_forward", 1)
         if keys[pygame.K_a]:
+            print("turn_left")
             send_action(world, "turn_left", 1)
         if keys[pygame.K_d]:
+            print("turn right")
             send_action(world, "turn_right", 1)
         if keys[pygame.K_s]:
+            print("move backward")
             send_action(world, "move_backward", 1)
         if keys[pygame.K_UP]:
             send_action(world, "grab")
         if keys[pygame.K_DOWN]:
             send_action(world, "put")
         if keys[pygame.K_q]:
+            print("move left")
             send_action(world, "move_left", 1)
             #send_action(world, "wheel_move", 1, -1, -1, 1)
         if keys[pygame.K_e]:
+            print("move right")
             send_action(world, "move_right", 1)
             #send_action(world, "wheel_move", -1, 1, 1, -1)
+        '''
+        print("move forward")
+        send_action(world, "move_forward", 1)
+        show(world)
+        time.sleep(3)
+        print("move backword")
+        send_action(world, "move_backward", 1)
+        show(world)
+        time.sleep(3)
+        print("move left")
+        send_action(world, "move_left", 1)
+        show(world)
+        time.sleep(3)
+        print("move right")
+        send_action(world, "move_right" ,1)
+        show(world)
+        time.sleep(3)
+        print("turn left")
+        send_action(world, "turn_left", 1)
+        show(world)
+        time.sleep(3)
+        print("turn right")
+        send_action(world, "turn_right", 1)
+        show(world)
+        time.sleep(3)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -308,7 +365,7 @@ def test(world, w=0, h=0):
                 pass
             elif event.type == pygame.MOUSEMOTION:
                 pass
-
+        
 
 #world = gen_world(800, 800)
 #test(world, 800, 800)

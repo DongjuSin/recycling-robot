@@ -14,7 +14,7 @@ class World:
     def __init__(self, w, h):
         self.w = w
         self.h = h
-        
+        self.winCount = 0
         # gen trashes randomly
         '''
         self.trashes = {
@@ -29,20 +29,22 @@ class World:
         
         # gen one trash
         self.trash = Can()
-        trash = self.trash
-        radius = (trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
-        trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
-        trash.rotate_to(random.random()*math.pi*2)
+        #radius = (self.trash.sprite.get_width()**2 + self.trash.sprite.get_height()**2)**0.5*0.5
+        #self.trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        self.trash.move_to((w/10)*random.randrange(1,9), (h/10)*random.randrange(1,9))
+        #self.trash.rotate_to(random.random()*math.pi*2)
 
         # gen robot random position
         self.robot = Robot()
-        radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
-        self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
-        self.robot.rotate_to(random.random()*math.pi*2)
+        #radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
+        #self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        self.robot.move_to(w/10, h/10)
+        #self.robot.rotate_to(random.random()*math.pi*2)
+        #self.robot.rotate_to(math.radians(90)*random.randrange(0,3))
 
         # gen Trash Can
         self.trashcan = TrashCan()
-        radius = (self.trashcan.image.get_width()**2 + self.trashcan.image.get_height()**2)**0.5*0.5
+        #radius = (self.trashcan.image.get_width()**2 + self.trashcan.image.get_height()**2)**0.5*0.5
         self.trashcan.move_to(self.w/2, self.h/2)
 
         # gen background 
@@ -63,18 +65,17 @@ class World:
         w=self.w
         h=self.h
 
-        trash = self.trash
-        radius = (trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
-        trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
-        trash.rotate_to(random.random()*math.pi*2)
+        #radius = (trash.sprite.get_width()**2 + trash.sprite.get_height()**2)**0.5*0.5
+        #self.trash.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        #self.trash.rotate_to(random.random()*math.pi*2)
+        self.trash.move_to((w/10)*random.randrange(1,9), (h/10)*random.randrange(1,9))
 
         # gen robot
-        radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
-        self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
-        self.robot.rotate_to(random.random()*math.pi*2)
+        #radius = (self.robot.sprite.get_width()**2 + self.robot.sprite.get_height()**2)**0.5*0.5
+        #self.robot.move_to(radius+random.random()*(w-radius*2), radius+random.random()*(h-radius*2))
+        #self.robot.rotate_to(random.random()*math.pi*2)
+        self.robot.move_to(w/10, h/10)
     
-        # gen Trash Can
-        self.trashcan.move_to(self.w/2, self.h/2)
 
         # gen background
         self.background = pygame.Surface((w, h))
@@ -95,15 +96,30 @@ class World:
                     distance_square_sum += trash1.distance(trash2)**2
         return -distance_square_sum
         '''
-
         # when only one trash
-        max_dist = (self.w**2 + self.h**2)**0.5*0.5
         dist = self.trash.distance(self.trashcan)
+        
+        '''
+        # set reward as distance between trash and roboti
+        #max_dist = (self.w**2 + self.h**2)**0.5
+        #dist = self.trash.distance(self.robot.get_armpos())
+        trash = self.trash
+        robot = self.robot
+        arm_x = robot.x + math.cos(robot.angle)*0.5*robot.w
+        arm_y = robot.y - math.sin(robot.angle)*0.5*robot.w
+        dist = ((trash.x - arm_x)**2 + (trash.y - arm_y)**2)**0.5
+        '''
+        return -dist
+    
+    def get_dist(self):
+        trash = self.trash
+        robot = self.robot
+        arm_x = robot.x + math.cos(robot.angle)*0.5*robot.w
+        arm_y = robot.y - math.sin(robot.angle)*0.5*robot.w
+        dist = ((trash.x - arm_x)**2 + (trash.y - arm_y)**2)**0.5
 
-        reward = max_dist - dist
+        return -dist
 
-        return reward
-            
     def get_screen(self):
         # draw background
         self.screen.blit(self.background, (0,0))
@@ -136,6 +152,7 @@ class World:
 
         # draw TrashCan
         self.screen.blit(self.trashcan.image, (self.trashcan.x-self.trashcan.image.get_width()*0.5, self.trashcan.y-self.trashcan.image.get_height()*0.5))
+
         return self.screen
 
     def draw_on(self, dest):
@@ -161,11 +178,23 @@ class World:
         return gamewin
         '''
         # when only one trash
+        '''
         trash = self.trash
         if(trash.distance(self.trashcan) < 10):
             gamewin = True
         else:
             gamewin = False
+        '''
+
+        # win a game when robot reaches to trash
+        trash = self.trash
+        if(self.get_score() > -20):
+            print("****************** game win ***********************")
+            gamewin = True
+            self.winCount += 1
+        else:
+            gamewin = False
+
         return gamewin
 
     def is_getout(self):
@@ -199,7 +228,7 @@ class Thing:
     def rotate_by(self, angle):
         self.angle += angle
     def distance(self, other):
-        return ((self.x-other.x)**2 + (self.x-other.x)**2)**0.5
+        return ((self.x-other.x)**2 + (self.y-other.y)**2)**0.5
 
 class Can(Thing):
     image_pathes = [os.path.join("images/can", f) for f in os.listdir("images/can") if f.endswith(".png")]
@@ -217,7 +246,7 @@ class Robot(Thing):
     #move_animation= []
     stop_image = pygame.image.load(stop_image_path).convert_alpha()
     stop_sprite = stop_image
-    wheel_speed = 1
+    wheel_speed = 80
 
     #grab_animation_surfaces = [pygame.image.load(i) for i in grab_animation_path]
     #move_animation_surfaces = [pygame.image.load(i) for i in move_animation_path]
@@ -295,9 +324,11 @@ class Robot(Thing):
     def move_left(self, v):
         self.move_by(math.cos(self.angle-math.pi*0.5)*self.wheel_speed*v, -math.sin(self.angle-math.pi*0.5)*self.wheel_speed*v)
     def rotate_right(self, w):
-        self.rotate_by(-self.turn_speed*w)
+        #self.rotate_by(-self.turn_speed*w)
+        self.rotate_by(math.radians(-90))
     def rotate_left(self, w):
-        self.rotate_by(self.turn_speed*w)
+        #self.rotate_by(self.turn_speed*w)
+        self.rotate_by(math.radians(90))
     def wheel_move(self, left_top, right_top, left_bottom, right_bottom):
         # vy = wx*R - wr*r*cos(45)
         # vx = wr*r*sin(45)
@@ -308,7 +339,7 @@ class Robot(Thing):
         # move horizental
         horizental_speed = self.wheel_speed*(-left_top+right_top+left_bottom-right_bottom)*0.25
         self.move_by(math.cos(self.angle-math.pi*0.5)*horizental_speed, -math.sin(self.angle-math.pi*0.5)*horizental_speed)
-
+        
 class TrashCan(Thing):
     image = pygame.image.load("images/TrashCan/TrashCan.png").convert_alpha()
     def __init__(self):
